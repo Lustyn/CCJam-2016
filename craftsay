@@ -1,7 +1,25 @@
 local args = { ... }
 
+local flags = {
+    ["eyes"] = "Changes cow's eyes. Aliases: e, eyes",
+    ["tongue"] = "Changes cow's tongue. Aliases: t, tongue",
+    ["thoughts"] = "Changes cow's thoughtbubble lines. Aliases: T, thoughts",
+    ["think"] = "Changes if cow is thinking or not. Aliases: q, think",
+    ["download"] = "Downloads a cow file. Aliases: d, dl, download",
+    ["output"] = "Outputs to a file or changes file output. Aliases: o, out, output",
+    ["cow"] = "Chooses which cow file to load. Aliases: f, file, cow, c"
+}
+function printHelp()
+    print("Usage: "..shell.getRunningProgram().." [text] [-flag [string]]")
+    print("Flags: ")
+    for i,v in pairs(flags) do
+        print(i..": "..v)
+    end
+end
+
 if #args < 1 then
-    error("didn't supply text'") -- TODO: add arg docs
+    printHelp()
+    return
 end
 
 -- CONSTANTS
@@ -18,6 +36,59 @@ local cow_vars_defaults = {
     ["eyes"] = "oo",
     ["tongue"] = "  "
 }
+
+local function parseArgs(args)
+    local current = 0
+    local pargs = {}
+    local tripped = false
+    local pargs = {}
+    local adding = false
+    local addto = ""
+    for i=1,#args do
+        if args[i+1] and args[i]:sub(1,1) == "-" then
+            tripped = true
+            if args[i+1]:sub(1,1) == "-" then
+                pargs[args[i]:sub(2)] = true
+            elseif args[i+1]:sub(1,1) ~= "\"" then
+                pargs[args[i]:sub(2)] = args[i+1]
+            end
+        elseif args[i+1] and args[i+1]:sub(1,1) == "\"" then
+            adding = true
+            addto = pargs[args[i]:sub(2)]
+            pargs[args[i]:sub(2)] = ""
+        elseif adding then
+            if args[i]:sub(-1) == "\"" then
+                adding = false
+            end
+            pargs[addto] = pargs[addto].." ".. args[i]
+        elseif not tripped then
+            pargs["text"] = (pargs["text"] or "").." "..args[i]
+        end
+    end
+    if pargs["text"] and pargs["text"]:sub(1,1) == " " then
+        pargs["text"] = pargs["text"]:sub(2)
+    end
+    return pargs
+end
+
+function split(str, pat)
+   local t = {}  -- NOTE: use {n = 0} in Lua-5.0
+   local fpat = "(.-)" .. pat
+   local last_end = 1
+   local s, e, cap = str:find(fpat, 1)
+   while s do
+      if s ~= 1 or cap ~= "" then
+	 table.insert(t,cap)
+      end
+      last_end = e+1
+      s, e, cap = str:find(fpat, last_end)
+   end
+   if last_end <= #str then
+      cap = str:sub(last_end)
+      table.insert(t, cap)
+   end
+   return t
+end
 
 local function replaceVar(cow, var, data)
     return cow:gsub("$"..var, data)
@@ -148,6 +219,9 @@ function makeCow(cow, text, options, think)
 end
 
 function makeCowFromFile(file, text, options, think)
+    if not fs.exists(file) and not fs.isDir(file) then
+        file = "/cows/"..file
+    end
     if fs.exists(file) and not fs.isDir(file) then
         local fi = fs.open(file, "r")
         local cow = fi.readAll()
@@ -175,7 +249,7 @@ end
 
 function downloadCowToFile(url, file)
     local cow = downloadCow(url)
-    local fi = fs.open("file", "w")
+    local fi = fs.open(file, "w")
     fi.write(cow)
     fi.close()
 end
@@ -192,10 +266,30 @@ function listDownloadedCows()
     --TODO
 end
 
-print(makeCow([[$the_cow = <<"EOC";
-        $thoughts   ^__^
-         $thoughts  ($eyes)\\_______
-            (__)\\       )\\/\\
-             $tongue ||----w |
-                ||     ||
-EOC]],"moo"))
+local pArgs = parseArgs(args)
+local options = {
+    eyes = pArgs["e"] or pArgs["eyes"] or nil,
+    tongue = pArgs["t"] or pArgs["tongue"] or nil,
+    thoughts = pArgs["T"] or pArgs["thoughts"] or nil,
+}
+local think = pArgs["q"] or pArgs["think"] or false
+local cow_file = pArgs["c"] or pArgs["cow"] or pArgs["f"] or pArgs["file"] or nil
+if (pArgs["d"] and type(pArgs["d"]) == "string") or (pArgs["download"] and type(pArgs["download"]) == "string") or (pArgs["dl"] and type(pArgs["dl"]) == "string") then
+    local filename
+    if pArgs["o"] or pArgs["out"] or pArgs["output"] then
+        filename = pArgs["o"] or pArgs["out"] or pArgs["output"]
+    else
+        local parts = split(pArgs["d"],"/")
+        filename = parts[#parts]
+    end
+    downloadCowToFile(pArgs["d"], filename)
+    print("Downloaded "..filename)
+elseif pArgs["text"] and pArgs["text"]:len() > 0 then
+    if cow_file == nil then
+        cow_file = "default.cow"
+    end
+    print(makeCowFromFile(cow_file, pArgs["text"], options, think))
+else
+    printHelp()
+    return
+end
