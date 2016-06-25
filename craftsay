@@ -1,0 +1,201 @@
+local args = { ... }
+
+if #args < 1 then
+    error("didn't supply text'") -- TODO: add arg docs
+end
+
+-- CONSTANTS
+local cow_begin = "<<EOC;\n"
+local cow_begin_alt = "<<\"EOC\";\n"
+local cow_end = "\nEOC"
+local cow_vars = {
+    "thoughts",
+    "eyes",
+    "tongue"
+}
+local cow_vars_defaults = {
+    ["thoughts"] = "\\",
+    ["eyes"] = "oo",
+    ["tongue"] = "  "
+}
+
+local function replaceVar(cow, var, data)
+    return cow:gsub("$"..var, data)
+end
+
+local function max(linez)
+    local m = 0
+    for i, v in pairs(linez) do
+        if v:len() > m then
+            m = v:len()
+        end
+    end
+    return m
+end
+
+local function lines(str)
+  local t = {}
+  local function helper(line) table.insert(t, line) return "" end
+  helper((str:gsub("(.-)\r?\n", helper)))
+  return t
+end
+
+local function pad(text, length)
+	return text..string.rep(" ", length - text:len())
+end
+
+local function top(length)
+    return string.rep("_", length+2)
+end
+
+local function bottom(length, p)
+    return string.rep("-", length+2)
+end
+
+local function formatBubbleText(text, delimiters)
+    local linez = lines(text)
+    local m = max(linez)
+    local balloon = ""
+    local delim = {}
+    if #linez == 1 then
+        balloon = " "..top(m).."\n"..delimiters.only[1].." "..linez[1].." "..delimiters.only[2].."\n".." "..bottom(m).."\n"
+    else
+        balloon = " "..top(m).."\n"
+        for i,v in ipairs(linez) do
+            if i==1 then
+                delim = delimiters["first"]
+            elseif i==#linez then
+                delim = delimiters["last"]
+            else
+                delim = delimiters["middle"]
+            end
+            balloon = balloon..delim[1].." "..pad(v, m).." "..delim[2].."\n"
+        end
+        balloon = balloon.." "..bottom(m).."\n"
+    end
+    return balloon
+end
+
+local function say(text)
+    local delimiters = {
+        first = {"/", "\\"},
+        middle = {"|", "|"},
+        last = {"\\", "/"},
+        only = {"<", ">"},
+    }
+
+    return formatBubbleText(text, delimiters)
+end
+
+local function think(text)
+    local delimiters = {
+        first = {"(", ")"},
+        middle = {"(", ")"},
+        last = {"(", ")"},
+        only = {"(", ")"},
+    }
+
+    return formatBubbleText(text, delimiters)
+end
+
+local function readCow(cow)
+    if cow:find(cow_begin_alt) then
+        cow = cow:gsub(cow_begin_alt, cow_begin)
+    end
+    local _, start = cow:find(cow_begin)
+    local stop, _ = cow:find(cow_end)
+    cow = cow:sub(start, stop)
+    return cow:sub(2)
+end
+
+local function getCowVars(cow)
+    local vars = {}
+    for k, v in pairs(cow_vars) do
+        if cow:find("$"..v) then
+            vars[v] = true
+        else
+            vars[v] = false
+        end
+    end
+    return vars
+end
+
+local function formatCow(cow, options)
+    if not options then
+        options = {}
+    end
+    local cow = readCow(cow):gsub("\\\\","\\"):gsub("\\@","@"):gsub("\\$","$")
+    local vars = getCowVars(cow)
+    for k, v in pairs(vars) do
+        if options[k] then
+            if k == "tongue" and options[k]:len() < 2 then
+                options[k] = options[k].." "
+            end
+            cow = replaceVar(cow, k, options[k])
+        else
+            cow = replaceVar(cow, k, cow_vars_defaults[k])
+        end
+    end
+    return cow
+end
+
+function makeCow(cow, text, options, think)
+    if think then
+        return think(text)..formatCow(cow, options)
+    else
+        return say(text)..formatCow(cow, options)
+    end
+end
+
+function makeCowFromFile(file, text, options, think)
+    if fs.exists(file) and not fs.isDir(file) then
+        local fi = fs.open(file, "r")
+        local cow = fi.readAll()
+        fi.close()
+        return makeCow(cow, text, options, think)
+    else
+        error("File does not exist or is a directory.")
+    end
+end
+
+function downloadCow(url)
+    if not http.checkURL(url) then
+        error("Invalid URL")
+    else
+        local req = http.get(url)
+        if req then
+            local cow = req.readAll()
+            req.close()
+            return cow
+        else
+            error("Download failed.")
+        end
+    end
+end
+
+function downloadCowToFile(url, file)
+    local cow = downloadCow(url)
+    local fi = fs.open("file", "w")
+    fi.write(cow)
+    fi.close()
+end
+
+function downloadCowList()
+    --TODO
+end
+
+function listCows()
+    --TODO
+end
+
+function listDownloadedCows()
+    --TODO
+end
+
+print(makeCow([[$the_cow = <<"EOC";
+        $thoughts   ^__^
+         $thoughts  ($eyes)\\_______
+            (__)\\       )\\/\\
+             $tongue ||----w |
+                ||     ||
+EOC]],"moo"))
