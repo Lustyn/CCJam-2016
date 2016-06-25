@@ -10,10 +10,16 @@ local flags = {
     ["cow"] = {desc = "Chooses which cow file to load.", alias = {"f", "file", "c"}},
     ["list"] = {desc = "Lists installed cows.", alias = {"ls", "l"}},
     ["repolist"] = {desc = "Lists cows contained in the repo.", alias = {"rl", "rls"}},
-    ["downloadall"] = {desc = "Downloads all cows from the repo.", alias = {"dla", "da"}}
+    ["downloadall"] = {desc = "Downloads all cows from the repo.", alias = {"dla", "da"}},
+    ["foreground"] = {desc = "Sets the cow foreground color.", alias = {"fg"}},
+    ["background"] = {desc = "Sets the cow background color.", alias = {"bg"}},
+    ["characterbackground"] = {desc = "Sets the background when a character is present", alias = {"cbg"}},
+    ["clear"] = {desc = "Clears the screen before printing.", alias = {"cls"}}
 }
 
 function printHelp()
+    if term.isColor() then term.setTextColor(colors.red) end
+    print("(Press any key to continue scrolling)")
     if term.isColor() then term.setTextColor(colors.blue) end
     print("Usage: "..shell.getRunningProgram().." [text] [-flag [string]]")
     print("Flags:")
@@ -24,6 +30,7 @@ function printHelp()
         write(v.desc.." ")
         if term.isColor() then term.setTextColor(colors.lightBlue) end
         write("("..table.concat(v.alias, ", ")..")\n")
+        os.pullEventRaw()
     end
 end
 
@@ -168,6 +175,14 @@ local function count(tbl)
     return c
 end
 
+local function isChar(char)
+    if char ~= " " and char ~= "\n" then
+        return true
+    else
+        return false
+    end
+end
+
 local function say(text)
     local delimiters = {
         first = {"/", "\\"},
@@ -245,8 +260,8 @@ local function formatCow(cow, options)
     return cow
 end
 
-function makeCow(cow, text, options, think)
-    if think then
+function makeCow(cow, text, options, thinking)
+    if thinking then
         return think(text)..formatCow(cow, options)
     else
         return say(text)..formatCow(cow, options)
@@ -335,6 +350,9 @@ local options = {
     eyes = pArgs["e"] or pArgs["eyes"] or nil,
     tongue = pArgs["t"] or pArgs["tongue"] or nil,
     thoughts = pArgs["T"] or pArgs["thoughts"] or nil,
+    background = pArgs["background"] or pArgs["bg"] or nil,
+    foreground = pArgs["foreground"] or pArgs["fg"] or nil,
+    characterbackground = pArgs["characterbackground"] or pArgs["cbg"] or nil
 }
 local think = pArgs["q"] or pArgs["think"] or false
 local cow_file = pArgs["c"] or pArgs["cow"] or pArgs["f"] or pArgs["file"] or nil
@@ -372,7 +390,42 @@ elseif pArgs["text"] and pArgs["text"]:len() > 0 then
     if cow_file == nil then
         cow_file = "default.cow"
     end
-    print(makeCowFromFile(cow_file, pArgs["text"], options, think))
+    if term.isColor() then term.setTextColor(colors[options.foreground or "white"] or colors.white) end
+    if term.isColor() then term.setBackgroundColor(colors[options.background or "black"] or colors.black) end
+    if pArgs["clear"] or pArgs["cls"] then
+        term.clear()
+        term.setCursorPos(1,1)
+    end
+    local cow = makeCowFromFile(cow_file, pArgs["text"], options, think)
+    if pArgs["o"] or pArgs["out"] or pArgs["output"] then
+        filename = pArgs["o"] or pArgs["out"] or pArgs["output"]
+        local fi = fs.open(filename, "w")
+        fi.write(cow)
+        fi.close()
+        return
+    end
+    for i=1,#cow do
+        local char = cow:sub(i,i)
+        local prechar = cow:sub(i-1, i-1)
+        local postchar = cow:sub(i+1, i+1)
+        if i-1 == -1 then
+            prechar = " "
+        end
+        if i+1 > #cow then
+            postchar = " "
+        end
+        if isChar(char) or isChar(prechar) or isChar(postchar) then
+            if term.isColor() then term.setBackgroundColor(colors[options.characterbackground or options.background or "black"] or colors.black) end
+        else
+            if term.isColor() then term.setBackgroundColor(colors[options.background or "black"] or colors.black) end
+        end
+        if prechar and char == "\n" then
+            write(" ")
+        end
+        write(char)
+    end
+    term.setTextColor(colors.white)
+    term.setBackgroundColor(colors.black)
 else
     printHelp()
 end
