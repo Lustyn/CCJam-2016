@@ -136,6 +136,7 @@ local function bottom(length, p)
 end
 
 local function formatBubbleText(text, delimiters)
+    text = text:gsub("\\n","\\"):gsub("\\", "\n")
     local linez = lines(text)
     local m = max(linez)
     local balloon = ""
