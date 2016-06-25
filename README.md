@@ -1,1 +1,2 @@
-# CCJam-2016
+# craftsay
+Like cowsay, but for Minecraft!

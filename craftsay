@@ -1,19 +1,29 @@
 local args = { ... }
 
 local flags = {
-    ["eyes"] = "Changes cow's eyes. Aliases: e, eyes",
-    ["tongue"] = "Changes cow's tongue. Aliases: t, tongue",
-    ["thoughts"] = "Changes cow's thoughtbubble lines. Aliases: T, thoughts",
-    ["think"] = "Changes if cow is thinking or not. Aliases: q, think",
-    ["download"] = "Downloads a cow file. Aliases: d, dl, download",
-    ["output"] = "Outputs to a file or changes file output. Aliases: o, out, output",
-    ["cow"] = "Chooses which cow file to load. Aliases: f, file, cow, c"
+    ["eyes"] = {desc = "Changes cow's eyes.", alias = {"e"}},
+    ["tongue"] = {desc = "Changes cow's tongue.", alias = {"t"}},
+    ["thoughts"] = {desc = "Changes cow's bubble lines.", alias = {"T"}},
+    ["think"] = {desc = "Changes the speechbubble to a thoughtbubble.", alias = {"q"}},
+    ["download"] = {desc = "Downloads a cow file.", alias = {"d", "dl"}},
+    ["output"] = {desc = "Outputs to a file or changes file output.", alias = {"o", "out"}},
+    ["cow"] = {desc = "Chooses which cow file to load.", alias = {"f", "file", "c"}},
+    ["list"] = {desc = "Lists installed cows.", alias = {"ls", "l"}},
+    ["repolist"] = {desc = "Lists cows contained in the repo.", alias = {"rl", "rls"}},
+    ["downloadall"] = {desc = "Downloads all cows from the repo.", alias = {"dla", "da"}}
 }
+
 function printHelp()
+    if term.isColor() then term.setTextColor(colors.blue) end
     print("Usage: "..shell.getRunningProgram().." [text] [-flag [string]]")
-    print("Flags: ")
+    print("Flags:")
     for i,v in pairs(flags) do
-        print(i..": "..v)
+        if term.isColor() then term.setTextColor(colors.lightBlue) end
+        write(i..": ")
+        if term.isColor() then term.setTextColor(colors.lightGray) end
+        write(v.desc.." ")
+        if term.isColor() then term.setTextColor(colors.lightBlue) end
+        write("("..table.concat(v.alias, ", ")..")\n")
     end
 end
 
@@ -23,6 +33,8 @@ if #args < 1 then
 end
 
 -- CONSTANTS
+local cow_url = "https://github.com/justync7/CCJam-2016/raw/master/cows"
+local cow_dir = "/cows/"
 local cow_begin = "<<EOC;\n"
 local cow_begin_alt = "<<\"EOC\";\n"
 local cow_end = "\nEOC"
@@ -45,11 +57,11 @@ local function parseArgs(args)
     local adding = false
     local addto = ""
     for i=1,#args do
-        if args[i+1] and args[i]:sub(1,1) == "-" then
+        if args[i] and args[i]:sub(1,1) == "-" then
             tripped = true
-            if args[i+1]:sub(1,1) == "-" then
+            if not args[i+1] or args[i+1]:sub(1,1) == "-" then
                 pargs[args[i]:sub(2)] = true
-            elseif args[i+1]:sub(1,1) ~= "\"" then
+            elseif args[i+1] and args[i+1]:sub(1,1) ~= "\"" then
                 pargs[args[i]:sub(2)] = args[i+1]
             end
         elseif args[i+1] and args[i+1]:sub(1,1) == "\"" then
@@ -147,6 +159,14 @@ local function formatBubbleText(text, delimiters)
     return balloon
 end
 
+local function count(tbl)
+    local c = 0
+    for i,v in pairs(tbl) do
+        c = c+1
+    end
+    return c
+end
+
 local function say(text)
     local delimiters = {
         first = {"/", "\\"},
@@ -167,6 +187,20 @@ local function think(text)
     }
 
     return formatBubbleText(text, delimiters)
+end
+
+local function findCow(cow)
+    if fs.exists(cow_dir..cow) then
+        return cow_dir..cow
+    elseif fs.exists(cow_dir..cow..".cow") then
+        return cow_dir..cow..".cow"
+    elseif fs.exists(cow..".cow") then
+        return cow..".cow"
+    elseif fs.exists(cow) then
+        return cow
+    else
+        return false
+    end
 end
 
 local function readCow(cow)
@@ -219,11 +253,9 @@ function makeCow(cow, text, options, think)
 end
 
 function makeCowFromFile(file, text, options, think)
-    if not fs.exists(file) and not fs.isDir(file) then
-        file = "/cows/"..file
-    end
-    if fs.exists(file) and not fs.isDir(file) then
-        local fi = fs.open(file, "r")
+    local check = findCow(file)
+    if check and not fs.isDir(file) then
+        local fi = fs.open(check, "r")
         local cow = fi.readAll()
         fi.close()
         return makeCow(cow, text, options, think)
@@ -255,15 +287,46 @@ function downloadCowToFile(url, file)
 end
 
 function downloadCowList()
-    --TODO
+    local req = http.get(cow_url)
+    if req then
+        local list = req.readAll()
+        req.close()
+        local fi = fs.open(cow_dir.."cows", "w")
+        fi.write(list)
+        fi.close()
+        if term.isColor() then term.setTextColor(colors.green) end
+        print("Downloaded cow list.")
+    else
+        error("Repo download failed.")
+    end
 end
 
 function listCows()
-    --TODO
+    local files = fs.list(cow_dir)
+    local found = {}
+    for i,v in pairs(files) do
+        if v:find(".cow") then
+            table.insert(found, v)
+        end
+    end
+    if term.isColor() then term.setTextColor(colors.blue) end
+    print("Installed cows:")
+    if term.isColor() then term.setTextColor(colors.lightBlue) end
+    print(table.concat(found, ", "))
 end
 
-function listDownloadedCows()
-    --TODO
+function listDownloadableCows()
+    if not fs.exists(cow_dir.."cows") then
+        downloadCowList()    
+    end
+    local cow_list = loadfile(cow_dir.."cows")()
+    if term.isColor() then term.setTextColor(colors.blue) end
+    print("Available cows:")
+    if term.isColor() then term.setTextColor(colors.lightBlue) end
+    for i, v in pairs(cow_list) do
+        write(i..", ")
+    end
+    write("\n")
 end
 
 local pArgs = parseArgs(args)
@@ -274,6 +337,11 @@ local options = {
 }
 local think = pArgs["q"] or pArgs["think"] or false
 local cow_file = pArgs["c"] or pArgs["cow"] or pArgs["f"] or pArgs["file"] or nil
+if not fs.exists(cow_dir) then
+    fs.makeDir(cow_dir)
+    downloadCowToFile("https://github.com/piuccio/cowsay/raw/master/cows/default.cow", cow_dir.."default.cow")
+end
+
 if (pArgs["d"] and type(pArgs["d"]) == "string") or (pArgs["download"] and type(pArgs["download"]) == "string") or (pArgs["dl"] and type(pArgs["dl"]) == "string") then
     local filename
     if pArgs["o"] or pArgs["out"] or pArgs["output"] then
@@ -283,7 +351,22 @@ if (pArgs["d"] and type(pArgs["d"]) == "string") or (pArgs["download"] and type(
         filename = parts[#parts]
     end
     downloadCowToFile(pArgs["d"], filename)
+    if term.isColor() then term.setTextColor(colors.green) end
     print("Downloaded "..filename)
+elseif pArgs["list"] or pArgs["l"] or pArgs["ls"] then
+    listCows()
+elseif pArgs["repolist"] or pArgs["rl"] or pArgs["rls"] then
+    listDownloadableCows()
+elseif pArgs["downloadall"] or pArgs["dla"] or pArgs["da"] then
+    if not fs.exists(cow_dir.."cows") then
+        downloadCowList()    
+    end
+    local cow_list = dofile(cow_dir.."cows")
+    for i,v in pairs(cow_list) do
+        downloadCowToFile(v, cow_dir..i)
+    end
+    if term.isColor() then term.setTextColor(colors.green) end
+    print("Downloaded "..count(cow_list).." cows.")
 elseif pArgs["text"] and pArgs["text"]:len() > 0 then
     if cow_file == nil then
         cow_file = "default.cow"
@@ -291,5 +374,4 @@ elseif pArgs["text"] and pArgs["text"]:len() > 0 then
     print(makeCowFromFile(cow_file, pArgs["text"], options, think))
 else
     printHelp()
-    return
 end
