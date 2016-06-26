@@ -14,7 +14,10 @@ local flags = {
     ["foreground"] = {desc = "Sets the cow foreground color.", alias = {"fg"}},
     ["background"] = {desc = "Sets the cow background color.", alias = {"bg"}},
     ["characterbackground"] = {desc = "Sets the background when a character is present", alias = {"cbg"}},
-    ["clear"] = {desc = "Clears the screen before printing.", alias = {"cls"}}
+    ["clear"] = {desc = "Clears the screen before printing.", alias = {"cls"}},
+    ["teletext"] = {desc = "Uses an alternative bottom character. (1.76+)", alias = {"tt", "tele"}},
+    ["monitor"] = {desc = "Uses a monitor from the specified side.", alias = {"mon", "m"}},
+    ["scale"] = {desc = "Specifys a text scale, (Only applies to monitors)", alias = {"s", "size"}}
 }
 
 function printHelp()
@@ -138,18 +141,22 @@ local function top(length)
     return string.rep("_", length+2)
 end
 
-local function bottom(length, p)
-    return string.rep("-", length+2)
+local function bottom(length, t)
+    if t == false then
+        return string.rep("-", length+2)
+    else
+        return string.rep("\175", length+2)
+    end
 end
 
-local function formatBubbleText(text, delimiters)
+local function formatBubbleText(text, delimiters, t)
     text = text:gsub("\\n","\\"):gsub("\\", "\n")
     local linez = lines(text)
     local m = max(linez)
     local balloon = ""
     local delim = {}
     if #linez == 1 then
-        balloon = " "..top(m).."\n"..delimiters.only[1].." "..linez[1].." "..delimiters.only[2].."\n".." "..bottom(m).."\n"
+        balloon = " "..top(m).."\n"..delimiters.only[1].." "..linez[1].." "..delimiters.only[2].."\n".." "..bottom(m, t).."\n"
     else
         balloon = " "..top(m).."\n"
         for i,v in ipairs(linez) do
@@ -162,7 +169,7 @@ local function formatBubbleText(text, delimiters)
             end
             balloon = balloon..delim[1].." "..pad(v, m).." "..delim[2].."\n"
         end
-        balloon = balloon.." "..bottom(m).."\n"
+        balloon = balloon.." "..bottom(m, t).."\n"
     end
     return balloon
 end
@@ -183,7 +190,7 @@ local function isChar(char)
     end
 end
 
-local function say(text)
+local function say(text, t)
     local delimiters = {
         first = {"/", "\\"},
         middle = {"|", "|"},
@@ -191,10 +198,10 @@ local function say(text)
         only = {"<", ">"},
     }
 
-    return formatBubbleText(text, delimiters)
+    return formatBubbleText(text, delimiters, t)
 end
 
-local function think(text)
+local function think(text, t)
     local delimiters = {
         first = {"(", ")"},
         middle = {"(", ")"},
@@ -202,7 +209,7 @@ local function think(text)
         only = {"(", ")"},
     }
 
-    return formatBubbleText(text, delimiters)
+    return formatBubbleText(text, delimiters, t)
 end
 
 local function findCow(cow)
@@ -223,6 +230,7 @@ local function readCow(cow)
     if cow:find(cow_begin_alt) then
         cow = cow:gsub(cow_begin_alt, cow_begin)
     end
+    cow = cow:gsub("\\$","\$")
     local _, start = cow:find(cow_begin)
     local stop, _ = cow:find(cow_end)
     cow = cow:sub(start, stop)
@@ -232,7 +240,7 @@ end
 local function getCowVars(cow)
     local vars = {}
     for k, v in pairs(cow_vars) do
-        if cow:find("$"..v) then
+        if cow:find("\\$"..v) then
             vars[v] = true
         else
             vars[v] = false
@@ -245,7 +253,7 @@ local function formatCow(cow, options)
     if not options then
         options = {}
     end
-    local cow = readCow(cow):gsub("\\\\","\\"):gsub("\\@","@"):gsub("\\$","$")
+    cow = readCow(cow):gsub("\\\\","\\"):gsub("\\@","@"):gsub("\\%$","$")
     local vars = getCowVars(cow)
     for k, v in pairs(vars) do
         if options[k] then
@@ -262,9 +270,9 @@ end
 
 function makeCow(cow, text, options, thinking)
     if thinking then
-        return think(text)..formatCow(cow, options)
+        return think(text, options.teletext)..formatCow(cow, options)
     else
-        return say(text)..formatCow(cow, options)
+        return say(text, options.teletext)..formatCow(cow, options)
     end
 end
 
@@ -352,9 +360,12 @@ local options = {
     thoughts = pArgs["T"] or pArgs["thoughts"] or nil,
     background = pArgs["background"] or pArgs["bg"] or nil,
     foreground = pArgs["foreground"] or pArgs["fg"] or nil,
-    characterbackground = pArgs["characterbackground"] or pArgs["cbg"] or nil
+    characterbackground = pArgs["characterbackground"] or pArgs["cbg"] or nil,
+    teletext = pArgs["teletext"] or pArgs["tt"] or pArgs["tele"] or false
 }
 local think = pArgs["q"] or pArgs["think"] or false
+local side = pArgs["monitor"] or pArgs["mon"] or pArgs["m"] or nil
+local scale = pArgs["scale"] or pArgs["s"] or pArgs["size"] or nil
 local cow_file = pArgs["c"] or pArgs["cow"] or pArgs["f"] or pArgs["file"] or nil
 if not fs.exists(cow_dir) then
     fs.makeDir(cow_dir)
@@ -404,6 +415,17 @@ elseif pArgs["text"] and pArgs["text"]:len() > 0 then
         fi.close()
         return
     end
+    if side and peripheral.isPresent(side) and peripheral.getType(side) == "monitor" then
+        mon = peripheral.wrap(side)
+        if scale then
+            mon.setTextScale(tonumber(scale))
+        end
+    else
+        error("Failed to wrap monitor on side "..side..".")
+    end
+    if not mon then
+        mon = term
+    end
     for i=1,#cow do
         local char = cow:sub(i,i)
         local prechar = cow:sub(i-1, i-1)
@@ -415,17 +437,17 @@ elseif pArgs["text"] and pArgs["text"]:len() > 0 then
             postchar = " "
         end
         if isChar(char) or isChar(prechar) or isChar(postchar) then
-            if term.isColor() then term.setBackgroundColor(colors[options.characterbackground or options.background or "black"] or colors.black) end
+            if term.isColor() then mon.setBackgroundColor(colors[options.characterbackground or options.background or "black"] or colors.black) end
         else
-            if term.isColor() then term.setBackgroundColor(colors[options.background or "black"] or colors.black) end
+            if term.isColor() then mon.setBackgroundColor(colors[options.background or "black"] or colors.black) end
         end
         if prechar and char == "\n" then
-            write(" ")
+            mon.write(" ")
         end
-        write(char)
+        mon.write(char)
     end
-    term.setTextColor(colors.white)
-    term.setBackgroundColor(colors.black)
+    mon.setTextColor(colors.white)
+    mon.setBackgroundColor(colors.black)
 else
     printHelp()
 end
