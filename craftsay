@@ -444,9 +444,11 @@ elseif pArgs["text"] and pArgs["text"]:len() > 0 then
         if prechar and char == "\n" then
             mon.write(" ")
         end
-        if char == "\n" then
+        if char == "\n" and side then
             local x, y = mon.getCursorPos()
             mon.setCursorPos(1, y+1)
+        elseif not side then
+            write(char)
         else
             mon.write(char)
         end
