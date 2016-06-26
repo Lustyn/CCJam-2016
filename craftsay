@@ -406,7 +406,7 @@ elseif pArgs["text"] and pArgs["text"]:len() > 0 then
         if scale then
             mon.setTextScale(tonumber(scale))
         end
-    else
+    elseif side then
         error("Failed to wrap monitor on side "..side..".")
     end
     if not mon then
@@ -444,9 +444,9 @@ elseif pArgs["text"] and pArgs["text"]:len() > 0 then
         if prechar and char == "\n" then
             mon.write(" ")
         end
-        if char == "\n" and side then
+        if char == "\n" then
             local x, y = mon.getCursorPos()
-            term.setCursorPos(1, y+1)
+            mon.setCursorPos(1, y+1)
         else
             mon.write(char)
         end
