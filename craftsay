@@ -401,20 +401,6 @@ elseif pArgs["text"] and pArgs["text"]:len() > 0 then
     if cow_file == nil then
         cow_file = "default.cow"
     end
-    if term.isColor() then term.setTextColor(colors[options.foreground or "white"] or colors.white) end
-    if term.isColor() then term.setBackgroundColor(colors[options.background or "black"] or colors.black) end
-    if pArgs["clear"] or pArgs["cls"] then
-        term.clear()
-        term.setCursorPos(1,1)
-    end
-    local cow = makeCowFromFile(cow_file, pArgs["text"], options, think)
-    if pArgs["o"] or pArgs["out"] or pArgs["output"] then
-        filename = pArgs["o"] or pArgs["out"] or pArgs["output"]
-        local fi = fs.open(filename, "w")
-        fi.write(cow)
-        fi.close()
-        return
-    end
     if side and peripheral.isPresent(side) and peripheral.getType(side) == "monitor" then
         mon = peripheral.wrap(side)
         if scale then
@@ -425,6 +411,20 @@ elseif pArgs["text"] and pArgs["text"]:len() > 0 then
     end
     if not mon then
         mon = term
+    end
+    if mon.isColor() then mon.setTextColor(colors[options.foreground or "white"] or colors.white) end
+    if mon.isColor() then mon.setBackgroundColor(colors[options.background or "black"] or colors.black) end
+    if pArgs["clear"] or pArgs["cls"] then
+        mon.clear()
+        mon.setCursorPos(1,1)
+    end
+    local cow = makeCowFromFile(cow_file, pArgs["text"], options, think)
+    if pArgs["o"] or pArgs["out"] or pArgs["output"] then
+        filename = pArgs["o"] or pArgs["out"] or pArgs["output"]
+        local fi = fs.open(filename, "w")
+        fi.write(cow)
+        fi.close()
+        return
     end
     for i=1,#cow do
         local char = cow:sub(i,i)
@@ -437,14 +437,19 @@ elseif pArgs["text"] and pArgs["text"]:len() > 0 then
             postchar = " "
         end
         if isChar(char) or isChar(prechar) or isChar(postchar) then
-            if term.isColor() then mon.setBackgroundColor(colors[options.characterbackground or options.background or "black"] or colors.black) end
+            if mon.isColor() then mon.setBackgroundColor(colors[options.characterbackground or options.background or "black"] or colors.black) end
         else
-            if term.isColor() then mon.setBackgroundColor(colors[options.background or "black"] or colors.black) end
+            if mon.isColor() then mon.setBackgroundColor(colors[options.background or "black"] or colors.black) end
         end
         if prechar and char == "\n" then
             mon.write(" ")
         end
-        mon.write(char)
+        if char == "\n" and side then
+            local x, y = mon.getCursorPos()
+            term.setCursorPos(1, y+1)
+        else
+            mon.write(char)
+        end
     end
     mon.setTextColor(colors.white)
     mon.setBackgroundColor(colors.black)
