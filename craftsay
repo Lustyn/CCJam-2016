@@ -239,6 +239,9 @@ local function readCow(cow)
     cow = cow:gsub("\\$","\$")
     local _, start = cow:find(cow_begin)
     local stop, _ = cow:find(cow_end)
+    if not start or not stop then
+        error("Invalid cow file.")
+    end
     cow = cow:sub(start, stop)
     return cow:sub(2)
 end
