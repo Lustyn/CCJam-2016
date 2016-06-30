@@ -63,7 +63,6 @@ local function parseArgs(args)
     local current = 0
     local pargs = {}
     local tripped = false
-    local pargs = {}
     local adding = false
     local addto = ""
     for i=1,#args do
@@ -89,6 +88,13 @@ local function parseArgs(args)
     end
     if pargs["text"] and pargs["text"]:sub(1,1) == " " then
         pargs["text"] = pargs["text"]:sub(2)
+    end
+    for i,v in pairs(pargs) do
+        if type(v) == "string" then
+            for match in v:gmatch("\\(%d+)") do
+                pargs[i] = v:gsub("\\"..match, string.char(tonumber(match)))
+            end
+        end
     end
     return pargs
 end
@@ -444,6 +450,7 @@ elseif pArgs["text"] and pArgs["text"]:len() > 0 then
         if prechar and char == "\n" then
             mon.write(" ")
         end
+        if mon.isColor() and char == string.char(127) and cow_file == "steve" then mon.setBackgroundColor(colors[options.foreground or "white"] or colors.white) end
         if char == "\n" and side then
             local x, y = mon.getCursorPos()
             mon.setCursorPos(1, y+1)
