@@ -49,5 +49,5 @@ return {
   [ "ghostbusters.cow" ] = "https://raw.githubusercontent.com/piuccio/cowsay/master/cows/ghostbusters.cow",
   [ "sheep.cow" ] = "https://raw.githubusercontent.com/piuccio/cowsay/master/cows/sheep.cow",
   [ "small.cow" ] = "https://raw.githubusercontent.com/piuccio/cowsay/master/cows/small.cow",
-  [ "steve.cow" ] = "https://raw.githubusercontent.com/justync7/CCJam-2016/steve.cow",
+  [ "steve.cow" ] = "https://raw.githubusercontent.com/justync7/CCJam-2016/master/steve.cow",
 }
